@@ -1,0 +1,42 @@
+﻿namespace ProductsWebAPI.Validation
+{
+    public class ValidColours
+    {
+        public static readonly HashSet<string> ColourSet = new HashSet<string>
+        {
+            "Red",
+            "Blue",
+            "Green",
+            "Yellow",
+            "Black",
+            "White",
+            "Purple",
+            "Orange",
+            "Pink",
+            "Brown",
+            "Gray",
+            "Violet",
+            "Cyan",
+            "Magenta",
+            "Beige",
+            "Turquoise",
+            "Lavender",
+            "Maroon",
+            "Navy",
+            "Gold",
+            "Silver",
+            "Ivory",
+            "Peach",
+            "Olive",
+            "Lime",
+            "Charcoal",
+            "Indigo",
+            "Salmon",
+            "Fuchsia",
+            "Teal",
+            "Crimson",
+            "Khaki",
+            "Grey"
+        };
+    }
+}
