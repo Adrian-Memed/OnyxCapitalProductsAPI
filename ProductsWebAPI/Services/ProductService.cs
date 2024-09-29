@@ -2,6 +2,7 @@
 using FluentValidation.Results;
 using ProductsWebAPI.Interfaces;
 using ProductsWebAPI.Models;
+using ProductsWebAPI.Services.Caching;
 
 namespace ProductsWebAPI.Services
 {
@@ -10,23 +11,49 @@ namespace ProductsWebAPI.Services
         private readonly IProductRepository _productRepository;
         private readonly IValidator<Product> _productValidator;
         private readonly IValidator<string> _colourValidator;
-        public ProductService(IProductRepository productRepository, IValidator<Product> productValidator, IValidator<string> colourValidator)
+        private readonly IRedisCacheService _cache;
+
+        public ProductService(IProductRepository productRepository,
+                              IValidator<Product> productValidator,
+                              IValidator<string> colourValidator,
+                              IRedisCacheService cache)
         {
             _productRepository = productRepository;
             _productValidator = productValidator;
             _colourValidator = colourValidator;
+            _cache = cache;
         }
         public async Task<IEnumerable<Product>> GetAllProductsAsync()
         {
-            return await _productRepository.GetAllProductsAsync();
+            IEnumerable<Product>? products = await _cache.GetData<IEnumerable<Product>>(nameof(Product).ToLower());
+            if (products is not null)
+            {
+                return products;
+            }
+            products = await _productRepository.GetAllProductsAsync();
+
+            await _cache.SetData(nameof(Product).ToLower(), products);
+            return products;
         }
         public async Task<IEnumerable<Product>> GetProductsByColourAsync(string colour)
         {
             colour = CapitalizeFirstLetter(colour);
 
-            ValidationResult validationResult = await _colourValidator.ValidateAsync(colour); 
-            
-            return await _productRepository.GetProductsByColourAsync(colour);
+            ValidationResult validationResult = await _colourValidator.ValidateAsync(colour);
+
+            var cacheKey = $"products_by_colour_{colour}";
+            var cachedProducts = await _cache.GetData<IEnumerable<Product>>(cacheKey);
+            if (cachedProducts != null)
+            {
+                return cachedProducts;
+            }
+
+            IEnumerable<Product> productsByColour = await _productRepository.GetProductsByColourAsync(colour);
+            if (productsByColour.Any())
+            {
+                await _cache.SetData(cacheKey, productsByColour);
+            }
+            return productsByColour;
         }
         public async Task<Product> AddProductAsync(CreateProductDto productDto)
         {
@@ -48,7 +75,7 @@ namespace ProductsWebAPI.Services
             }
 
             int id = await _productRepository.AddProductAsync(product);
-            
+
             product.Id = id;
 
             return product;
@@ -60,10 +87,10 @@ namespace ProductsWebAPI.Services
             {
                 return input;
             }
-            
+
             return char.ToUpper(input[0]) + input.Substring(1).ToLower();
         }
 
-        
+
     }
 }

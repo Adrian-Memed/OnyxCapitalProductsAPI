@@ -11,9 +11,12 @@ using ProductsWebAPI.Interfaces;
 using ProductsWebAPI.Middleware;
 using ProductsWebAPI.Repository;
 using ProductsWebAPI.Services;
+using ProductsWebAPI.Services.Caching;
 using ProductsWebAPI.Validation;
+using StackExchange.Redis;
 using System.Data;
 using System.Text;
+using System.Threading.RateLimiting;
 
 namespace ProductsWebAPI
 {
@@ -27,6 +30,7 @@ namespace ProductsWebAPI
             string? userId = builder.Configuration["DatabaseCredentials:UserId"];
             string? password = builder.Configuration["DatabaseCredentials:Password"];
             string fullConnectionString = $"{connectionString};User ID={userId};Password={password};";
+
 
             // Load JWT settings from configuration
             var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -64,11 +68,22 @@ namespace ProductsWebAPI
                     failureStatus: HealthStatus.Unhealthy,
                     tags: new[] { "sql", "healthchecks" });
 
+            builder.Services.AddStackExchangeRedisCache(option =>
+            {
+                option.Configuration = builder.Configuration.GetConnectionString("Redis");
+                option.InstanceName = "Products_";
+            });
+            builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+            {
+                var configuration = ConfigurationOptions.Parse("localhost:6379");
+                return ConnectionMultiplexer.Connect(configuration);
+            });
+            builder.Services.AddTransient<Services.RateLimiting.SlidingWindowRateLimiter>();
             builder.Services.AddScoped<IProductRepository, ProductRepository>();
             builder.Services.AddScoped<IProductService, ProductService>();
             builder.Services.AddScoped<IDapperHelper, DapperHelper>();
             builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
-
+            builder.Services.AddScoped<IRedisCacheService, RedisCacheService>();
             builder.Services.AddControllers();
 
             builder.Services.AddValidatorsFromAssemblyContaining<ProductValidator>();
